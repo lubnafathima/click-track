@@ -45,7 +45,11 @@ const FEATURES = [
 // ─── animation variants ────────────────────────────────────────────────────────
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 32 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: [0, 0, 0.2, 1] } },
+  show: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: [0, 0, 0.2, 1] },
+  },
 };
 
 const stagger: Variants = {
@@ -98,26 +102,28 @@ export default function LandingPage() {
             variants={fadeUp}
             className="text-5xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-[1.08]"
           >
-            Track who views{" "}
+            Know exactly when{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-purple-300">
-              your resume&nbsp;links
-            </span>
+              links
+            </span>{" "}
+            get opened
           </motion.h1>
 
           <motion.p
             variants={fadeUp}
             className="text-lg sm:text-xl text-slate-400 max-w-xl leading-relaxed"
           >
-            You send your resume into the void and hear nothing back. Click
-            Track tells you{" "}
+            Track clicks on portfolios, GitHub, Drive links, PDFs—any URL. Get{" "}
             <span className="text-slate-200 font-medium">
-              exactly when and how many times
+              real-time view counts
             </span>{" "}
-            a recruiter opened your link — so you know whether to follow up or
-            move on.
+            + follow-up signals.
           </motion.p>
 
-          <motion.div variants={fadeUp} className="flex flex-col sm:flex-row gap-3 mt-2">
+          <motion.div
+            variants={fadeUp}
+            className="flex flex-col sm:flex-row gap-3 mt-2"
+          >
             <Link
               href="/auth"
               className="btn-neon inline-flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold px-7 py-3.5 rounded-2xl transition-colors text-base"
@@ -133,7 +139,7 @@ export default function LandingPage() {
           </motion.div>
 
           <motion.p variants={fadeUp} className="text-xs text-slate-600">
-            Trusted by students at top universities during recruiting season
+            Trusted by students & devs during recruiting season
           </motion.p>
         </motion.div>
       </section>
@@ -206,7 +212,9 @@ export default function LandingPage() {
                   {f.icon}
                 </div>
                 <h3 className="font-semibold text-white">{f.title}</h3>
-                <p className="text-sm text-slate-400 leading-relaxed">{f.desc}</p>
+                <p className="text-sm text-slate-400 leading-relaxed">
+                  {f.desc}
+                </p>
               </motion.div>
             ))}
           </motion.div>
@@ -222,9 +230,7 @@ export default function LandingPage() {
           transition={{ duration: 0.5 }}
           className="max-w-2xl mx-auto glass rounded-3xl p-10 text-center border-violet-500/20"
         >
-          <h2 className="text-3xl font-bold mb-3">
-            Ready to stop guessing?
-          </h2>
+          <h2 className="text-3xl font-bold mb-3">Ready to stop guessing?</h2>
           <p className="text-slate-400 mb-6">
             Create your first tracker in 30 seconds. No setup, no billing.
           </p>
@@ -239,9 +245,7 @@ export default function LandingPage() {
 
       {/* ── Footer ───────────────────────────────────────────────────────────── */}
       <footer className="mt-auto border-t border-white/5 py-8 px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-slate-500">
-        <span>
-          Track your link &mdash; free, always.
-        </span>
+        <span>Track your link &mdash; free, always.</span>
         <a
           href="https://github.com"
           target="_blank"
