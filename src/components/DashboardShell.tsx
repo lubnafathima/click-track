@@ -56,7 +56,7 @@ export default function DashboardShell({
   // ── state ──────────────────────────────────────────────────────────────────
   const [trackers, setTrackers] = useState<Tracker[]>(initialTrackers);
   const [selected, setSelected] = useState<string | null>(
-    initialTrackers[0]?.id ?? null
+    initialTrackers[0]?.id ?? null,
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -96,10 +96,10 @@ export default function DashboardShell({
                     clicks: updated.clicks,
                     locations: updated.locations ?? [],
                   }
-                : t
-            )
+                : t,
+            ),
           );
-        }
+        },
       )
       .subscribe();
 
@@ -134,7 +134,7 @@ export default function DashboardShell({
       setSidebarOpen(false);
     } catch (err) {
       setCreateError(
-        err instanceof Error ? err.message : "Failed to create tracker."
+        err instanceof Error ? err.message : "Failed to create tracker.",
       );
     } finally {
       setCreating(false);
@@ -157,7 +157,7 @@ export default function DashboardShell({
         setDeleting(null);
       }
     },
-    [selected]
+    [selected],
   );
 
   const handleCopy = (slug: string) => {
@@ -198,8 +198,7 @@ export default function DashboardShell({
           <p className="text-xs text-slate-500 text-center py-10 px-3 leading-relaxed">
             No trackers yet.
             <br />
-            Hit{" "}
-            <span className="text-violet-400 font-medium">+</span> to create
+            Hit <span className="text-violet-400 font-medium">+</span> to create
             one.
           </p>
         ) : (
@@ -376,9 +375,7 @@ export default function DashboardShell({
                 <div className="flex items-center gap-3 bg-black/20 rounded-xl px-4 py-3 overflow-hidden">
                   <Link2 size={14} className="text-violet-400 shrink-0" />
                   <span className="text-sm text-slate-300 truncate flex-1 font-mono">
-                    {typeof window !== "undefined"
-                      ? `${window.location.origin}/t/${selectedTracker.short_url}`
-                      : `/t/${selectedTracker.short_url}`}
+                    {`${process.env.NEXT_PUBLIC_APP_URL}/t/${selectedTracker.short_url}`}
                   </span>
                   <button
                     onClick={() => handleCopy(selectedTracker.short_url)}
@@ -393,8 +390,8 @@ export default function DashboardShell({
                   </button>
                 </div>
                 <p className="text-xs text-slate-500">
-                  Share this instead of your direct URL — every visit is
-                  counted and geolocated.
+                  Share this instead of your direct URL — every visit is counted
+                  and geolocated.
                 </p>
               </div>
 
@@ -411,14 +408,20 @@ export default function DashboardShell({
                         className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
                       >
                         <div className="flex items-center gap-2 text-sm">
-                          <MapPin size={13} className="text-violet-400 shrink-0" />
+                          <MapPin
+                            size={13}
+                            className="text-violet-400 shrink-0"
+                          />
                           <span className="text-slate-300">
                             {loc.city !== "??" ? loc.city : "Unknown city"}
-                            {loc.country && loc.country !== "??" && loc.country !== "local" && (
-                              <span className="text-slate-500">
-                                {" "}· {loc.country}
-                              </span>
-                            )}
+                            {loc.country &&
+                              loc.country !== "??" &&
+                              loc.country !== "local" && (
+                                <span className="text-slate-500">
+                                  {" "}
+                                  · {loc.country}
+                                </span>
+                              )}
                           </span>
                         </div>
                         <div className="flex items-center gap-1 text-xs text-slate-600">

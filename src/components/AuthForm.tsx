@@ -39,7 +39,7 @@ export default function AuthForm() {
           email,
           password,
           options: {
-            data: { full_name: fullName, emailRedirectTo: null },
+            data: { full_name: fullName },
           },
         });
         if (error) {
