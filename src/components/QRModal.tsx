@@ -57,7 +57,7 @@ export default function QRModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="fixed inset-0 z-50 bg-black/70"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
         />
 
         {/* Modal */}
@@ -70,7 +70,7 @@ export default function QRModal({
           className="fixed inset-0 z-50 flex items-center justify-center px-4"
         >
           <div
-            className="glass rounded-3xl p-7 w-full max-w-xs flex flex-col gap-5 items-center"
+            className="bg-slate-900 border border-slate-700/60 rounded-3xl p-7 w-full max-w-xs flex flex-col gap-5 items-center shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}

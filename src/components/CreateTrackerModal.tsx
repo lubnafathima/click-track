@@ -85,7 +85,7 @@ export default function CreateTrackerModal({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
-        className="fixed inset-0 z-50 bg-black/60"
+        className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm"
       />
 
       {/* Panel */}
@@ -98,7 +98,7 @@ export default function CreateTrackerModal({
         className="fixed inset-0 z-50 flex items-center justify-center px-4 overflow-y-auto py-8"
       >
         <div
-          className="glass rounded-3xl p-7 w-full max-w-sm flex flex-col gap-5"
+          className="bg-slate-900 border border-slate-700/60 rounded-3xl p-7 w-full max-w-sm flex flex-col gap-5 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}

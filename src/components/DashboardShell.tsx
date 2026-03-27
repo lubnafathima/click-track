@@ -390,7 +390,7 @@ export default function DashboardShell({
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-900 to-slate-800 overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-72 shrink-0 glass border-r border-white/5">
+      <aside className="hidden md:flex flex-col w-64 lg:w-72 shrink-0 bg-slate-900 border-r border-slate-800">
         <SidebarContent />
       </aside>
 
@@ -404,7 +404,7 @@ export default function DashboardShell({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setSidebarOpen(false)}
-              className="fixed inset-0 z-30 bg-black/60 md:hidden"
+              className="fixed inset-0 z-30 bg-black/80 backdrop-blur-sm md:hidden"
             />
             <motion.aside
               key="drawer"
@@ -412,7 +412,7 @@ export default function DashboardShell({
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 35 }}
-              className="fixed inset-y-0 left-0 z-40 w-72 glass border-r border-white/5 flex flex-col md:hidden"
+              className="fixed inset-y-0 left-0 z-40 w-72 bg-slate-900 border-r border-slate-800 shadow-2xl flex flex-col md:hidden"
             >
               <SidebarContent />
             </motion.aside>
@@ -588,16 +588,25 @@ export default function DashboardShell({
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col items-center justify-center h-full text-center gap-4 py-24"
+              className="flex flex-col items-center justify-center min-h-[70vh] text-center gap-5 max-w-2xl mx-auto"
             >
-              <div className="text-5xl select-none">✨</div>
-              <h2 className="text-xl font-semibold text-white">
-                Click + to create your first tracker
-              </h2>
-              <p className="text-slate-400 text-sm max-w-xs leading-relaxed">
-                Paste your Google Drive / portfolio link, share the tracker URL,
-                and watch views roll in — with country data.
-              </p>
+              <div className="text-6xl select-none">✨</div>
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-2">
+                  Create your first tracker
+                </h2>
+                <p className="text-slate-400 text-sm max-w-xs leading-relaxed mx-auto">
+                  Paste your Google Drive / portfolio link and share the
+                  tracking URL. Every click is counted and geolocated — live.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCreate(true)}
+                className="btn-neon flex items-center gap-2 bg-violet-600 hover:bg-violet-500 text-white font-semibold px-6 py-3 rounded-2xl transition-colors text-sm"
+              >
+                <Plus size={16} strokeWidth={2.5} />
+                New tracker
+              </button>
             </motion.div>
           )}
         </div>
