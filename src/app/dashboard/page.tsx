@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import DashboardShell from "@/components/DashboardShell";
-import type { Tracker } from "@/types/tracker";
+import type { Folder, Tracker } from "@/types/tracker";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -12,21 +12,28 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/auth");
 
-  const { data: trackers, error } = await supabase
-    .from("trackers")
-    .select("*")
-    .order("created_at", { ascending: false });
+  // Fetch trackers and folders in parallel.
+  const [trackersResult, foldersResult] = await Promise.all([
+    supabase
+      .from("trackers")
+      .select("*")
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("folders")
+      .select("*")
+      .order("created_at", { ascending: true }),
+  ]);
 
-  if (error) {
-    // Surface DB errors clearly during development.
-    throw new Error(`Failed to load trackers: ${error.message}`);
+  if (trackersResult.error) {
+    throw new Error(`Failed to load trackers: ${trackersResult.error.message}`);
   }
 
   return (
     <DashboardShell
       userEmail={user.email ?? ""}
       userId={user.id}
-      initialTrackers={(trackers ?? []) as Tracker[]}
+      initialTrackers={(trackersResult.data ?? []) as Tracker[]}
+      initialFolders={(foldersResult.data ?? []) as Folder[]}
     />
   );
 }

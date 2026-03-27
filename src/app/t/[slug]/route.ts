@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import { buildUtmUrl, type UtmParams } from "@/types/tracker";
 
 // ─── geo lookup ───────────────────────────────────────────────────────────────
 
@@ -69,7 +70,7 @@ export async function GET(
   const [trackerResult, geo] = await Promise.all([
     supabase
       .from("trackers")
-      .select("id, original_url, clicks, locations")
+      .select("id, original_url, utm_params")
       .eq("short_url", slug)
       .single(),
     getGeoLocation(ip),
@@ -95,9 +96,12 @@ export async function GET(
     p_location: clickEntry,
   });
 
-  // 3. Redirect the visitor to the original URL.
+  // 3. Redirect the visitor to the original URL, appending any UTM params.
   //    Use 302 so browsers don't cache and miss future counts.
-  const destination = tracker.original_url;
+  const destination = buildUtmUrl(
+    tracker.original_url,
+    tracker.utm_params as UtmParams | null
+  );
 
   // Guard against non-http(s) URLs stored in the DB.
   if (!/^https?:\/\//.test(destination)) {

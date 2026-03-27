@@ -16,12 +16,21 @@ import {
   MapPin,
   ExternalLink,
   Clock,
+  QrCode,
+  Download,
+  ChevronDown,
+  ChevronRight,
+  FolderPlus,
+  Folder,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { createTracker, deleteTracker } from "@/app/actions";
-import Sparkline from "./Sparkline";
-import type { Tracker } from "@/types/tracker";
+import { createFolder, deleteTracker } from "@/app/actions";
+import ClickChart from "./ClickChart";
+import QRModal from "./QRModal";
+import CreateTrackerModal from "./CreateTrackerModal";
+import type { Folder as FolderType, Tracker } from "@/types/tracker";
 import { buildSparklineData } from "@/types/tracker";
+import Sparkline from "./Sparkline";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +50,7 @@ interface DashboardShellProps {
   userEmail: string;
   userId: string;
   initialTrackers: Tracker[];
+  initialFolders: FolderType[];
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -49,35 +59,41 @@ export default function DashboardShell({
   userEmail,
   userId,
   initialTrackers,
+  initialFolders,
 }: DashboardShellProps) {
   const router = useRouter();
   const supabase = createClient();
 
   // ── state ──────────────────────────────────────────────────────────────────
   const [trackers, setTrackers] = useState<Tracker[]>(initialTrackers);
+  const [folders, setFolders] = useState<FolderType[]>(initialFolders);
   const [selected, setSelected] = useState<string | null>(
     initialTrackers[0]?.id ?? null,
   );
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // create modal
+  // folder sidebar
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(
+    () => new Set([...initialFolders.map((f) => f.id), "uncategorized"]),
+  );
+  const [showNewFolder, setShowNewFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const [creatingFolder, setCreatingFolder] = useState(false);
+
+  // modals
   const [showCreate, setShowCreate] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newUrl, setNewUrl] = useState("");
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [qrTracker, setQrTracker] = useState<Tracker | null>(null);
 
   // delete
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  // copy link feedback
+  // copy
   const [copied, setCopied] = useState<string | null>(null);
 
   // ── realtime ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase
       .channel("tracker-live")
-      // Live click updates (fired by the /t/[slug] route handler)
       .on(
         "postgres_changes",
         {
@@ -91,11 +107,7 @@ export default function DashboardShell({
           setTrackers((prev) =>
             prev.map((t) =>
               t.id === updated.id
-                ? {
-                    ...t,
-                    clicks: updated.clicks,
-                    locations: updated.locations ?? [],
-                  }
+                ? { ...t, clicks: updated.clicks, locations: updated.locations ?? [] }
                 : t,
             ),
           );
@@ -103,9 +115,7 @@ export default function DashboardShell({
       )
       .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, [supabase, userId]);
 
   // ── actions ────────────────────────────────────────────────────────────────
@@ -116,28 +126,20 @@ export default function DashboardShell({
     router.refresh();
   };
 
-  const handleCreate = async () => {
-    const name = newName.trim();
-    const url = newUrl.trim();
-    if (!name || !url) return;
-
-    setCreateError(null);
-    setCreating(true);
-
+  const handleCreateFolder = async () => {
+    const name = newFolderName.trim();
+    if (!name) return;
+    setCreatingFolder(true);
     try {
-      const tracker = await createTracker(name, url);
-      setTrackers((prev) => [tracker, ...prev]);
-      setSelected(tracker.id);
-      setNewName("");
-      setNewUrl("");
-      setShowCreate(false);
-      setSidebarOpen(false);
+      const folder = await createFolder(name);
+      setFolders((prev) => [...prev, folder]);
+      setExpandedFolders((prev) => new Set([...prev, folder.id]));
+      setNewFolderName("");
+      setShowNewFolder(false);
     } catch (err) {
-      setCreateError(
-        err instanceof Error ? err.message : "Failed to create tracker.",
-      );
+      console.error("Failed to create folder:", err);
     } finally {
-      setCreating(false);
+      setCreatingFolder(false);
     }
   };
 
@@ -168,18 +170,84 @@ export default function DashboardShell({
     });
   };
 
+  const handleExport = (trackerId: string) => {
+    window.location.href = `/api/export/${trackerId}`;
+  };
+
+  const toggleFolder = (id: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
   // ── derived ────────────────────────────────────────────────────────────────
 
   const selectedTracker = trackers.find((t) => t.id === selected) ?? null;
   const recentClicks = selectedTracker
     ? [...(selectedTracker.locations ?? [])].reverse().slice(0, 20)
     : [];
+  const trackingUrl =
+    typeof window !== "undefined" && selectedTracker
+      ? `${window.location.origin}/t/${selectedTracker.short_url}`
+      : selectedTracker
+      ? `/t/${selectedTracker.short_url}`
+      : "";
+
+  // Group trackers by folder for sidebar.
+  const byFolder = trackers.reduce<Record<string, Tracker[]>>((acc, t) => {
+    const key = t.folder_id ?? "uncategorized";
+    acc[key] = [...(acc[key] ?? []), t];
+    return acc;
+  }, {});
+
+  const folderSections = [
+    ...folders.map((f) => ({
+      id: f.id,
+      name: f.name,
+      trackers: byFolder[f.id] ?? [],
+    })),
+    {
+      id: "uncategorized",
+      name: "Uncategorized",
+      trackers: byFolder["uncategorized"] ?? [],
+    },
+  ].filter((s) => s.trackers.length > 0 || s.id !== "uncategorized");
+
+  // ── tracker row ────────────────────────────────────────────────────────────
+
+  const TrackerRow = ({ t }: { t: Tracker }) => (
+    <button
+      key={t.id}
+      onClick={() => { setSelected(t.id); setSidebarOpen(false); }}
+      className={`w-full text-left flex items-center justify-between rounded-xl px-3 py-2.5 transition-colors ${
+        selected === t.id
+          ? "bg-violet-600/20 text-white"
+          : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
+      }`}
+    >
+      <div className="flex items-center gap-2.5 min-w-0">
+        <div
+          className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 text-[10px] font-bold ${
+            selected === t.id ? "bg-violet-600 text-white" : "bg-slate-700 text-slate-400"
+          }`}
+        >
+          {t.name[0].toUpperCase()}
+        </div>
+        <span className="text-sm font-medium truncate">{t.name}</span>
+      </div>
+      <span className={`text-xs font-semibold shrink-0 ml-2 ${selected === t.id ? "text-violet-300" : "text-slate-500"}`}>
+        {t.clicks}
+      </span>
+    </button>
+  );
 
   // ── sidebar ────────────────────────────────────────────────────────────────
 
   const SidebarContent = () => (
     <div className="flex flex-col h-full">
-      {/* Logo + close (mobile) */}
+      {/* Logo */}
       <div className="px-5 py-5 border-b border-white/5 flex items-center justify-between shrink-0">
         <span className="font-bold text-base text-white">
           Click<span className="text-violet-400">Track</span>
@@ -192,54 +260,118 @@ export default function DashboardShell({
         </button>
       </div>
 
-      {/* Tracker list */}
-      <div className="flex-1 overflow-y-auto py-3 px-3 space-y-1">
+      {/* Folders + tracker list */}
+      <div className="flex-1 overflow-y-auto py-3 px-3">
+        {/* Section header */}
+        <div className="flex items-center justify-between px-1 mb-2">
+          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            Folders
+          </span>
+          <button
+            onClick={() => setShowNewFolder((v) => !v)}
+            title="New folder"
+            className="text-slate-500 hover:text-violet-400 transition-colors"
+          >
+            <FolderPlus size={14} />
+          </button>
+        </div>
+
+        {/* New folder inline input */}
+        <AnimatePresence initial={false}>
+          {showNewFolder && (
+            <motion.div
+              key="new-folder"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="overflow-hidden mb-2"
+            >
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCreateFolder();
+                    if (e.key === "Escape") { setShowNewFolder(false); setNewFolderName(""); }
+                  }}
+                  autoFocus
+                  placeholder="Folder name…"
+                  className="flex-1 text-xs glass rounded-lg px-3 py-2 text-white placeholder-slate-500 outline-none focus:ring-1 focus:ring-violet-500/50 transition"
+                />
+                <button
+                  onClick={handleCreateFolder}
+                  disabled={!newFolderName.trim() || creatingFolder}
+                  className="px-2 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white transition-colors"
+                >
+                  {creatingFolder ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    <Check size={12} />
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Folder sections */}
         {trackers.length === 0 ? (
           <p className="text-xs text-slate-500 text-center py-10 px-3 leading-relaxed">
             No trackers yet.
             <br />
-            Hit <span className="text-violet-400 font-medium">+</span> to create
-            one.
+            Hit <span className="text-violet-400 font-medium">+</span> to create one.
           </p>
         ) : (
-          trackers.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setSelected(t.id);
-                setSidebarOpen(false);
-              }}
-              className={`w-full text-left flex items-center justify-between rounded-xl px-3 py-3 transition-colors ${
-                selected === t.id
-                  ? "bg-violet-600/20 text-white"
-                  : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-              }`}
-            >
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold ${
-                    selected === t.id
-                      ? "bg-violet-600 text-white"
-                      : "bg-slate-700 text-slate-400"
-                  }`}
-                >
-                  {t.name[0].toUpperCase()}
+          <div className="space-y-1">
+            {folderSections.map((section) => {
+              const isExpanded = expandedFolders.has(section.id);
+              return (
+                <div key={section.id}>
+                  {/* Folder header */}
+                  <button
+                    onClick={() => toggleFolder(section.id)}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-white/5 transition-colors"
+                  >
+                    {isExpanded ? (
+                      <ChevronDown size={12} className="shrink-0" />
+                    ) : (
+                      <ChevronRight size={12} className="shrink-0" />
+                    )}
+                    <Folder size={12} className="shrink-0" />
+                    <span className="text-xs font-medium truncate flex-1 text-left">
+                      {section.name}
+                    </span>
+                    <span className="text-xs text-slate-600 shrink-0">
+                      {section.trackers.length}
+                    </span>
+                  </button>
+
+                  {/* Tracker rows */}
+                  <AnimatePresence initial={false}>
+                    {isExpanded && (
+                      <motion.div
+                        key="items"
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.18 }}
+                        className="overflow-hidden pl-3 space-y-0.5"
+                      >
+                        {section.trackers.map((t) => (
+                          <TrackerRow key={t.id} t={t} />
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </div>
-                <span className="text-sm font-medium truncate">{t.name}</span>
-              </div>
-              <span
-                className={`text-xs font-semibold shrink-0 ml-2 ${
-                  selected === t.id ? "text-violet-300" : "text-slate-500"
-                }`}
-              >
-                {t.clicks}
-              </span>
-            </button>
-          ))
+              );
+            })}
+          </div>
         )}
       </div>
 
-      {/* User + sign-out */}
+      {/* User footer */}
       <div className="px-4 py-4 border-t border-white/5 flex items-center justify-between gap-2 shrink-0">
         <p className="text-xs text-slate-400 truncate min-w-0">{userEmail}</p>
         <button
@@ -303,7 +435,7 @@ export default function DashboardShell({
           </span>
         </div>
 
-        {/* Scrollable detail area */}
+        {/* Detail area */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-8 py-8">
           {selectedTracker ? (
             <motion.div
@@ -315,7 +447,7 @@ export default function DashboardShell({
             >
               {/* ── Header ──────────────────────────────────────────────── */}
               <div className="flex items-start justify-between gap-4">
-                <div>
+                <div className="min-w-0">
                   <h1 className="text-2xl font-bold text-white">
                     {selectedTracker.name}
                   </h1>
@@ -336,51 +468,69 @@ export default function DashboardShell({
                     </span>
                     <p className="text-xs text-slate-400">total clicks</p>
                   </div>
-                  <button
-                    onClick={() => handleDelete(selectedTracker.id)}
-                    disabled={deleting === selectedTracker.id}
-                    title="Delete tracker"
-                    className="mb-1 text-slate-600 hover:text-red-400 transition-colors disabled:opacity-40"
-                  >
-                    {deleting === selectedTracker.id ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      <Trash2 size={16} />
-                    )}
-                  </button>
+                  {/* Action buttons */}
+                  <div className="flex flex-col gap-1.5 mb-1">
+                    <button
+                      onClick={() => setQrTracker(selectedTracker)}
+                      title="QR code"
+                      className="text-slate-500 hover:text-violet-400 transition-colors"
+                    >
+                      <QrCode size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleExport(selectedTracker.id)}
+                      title="Export CSV"
+                      className="text-slate-500 hover:text-violet-400 transition-colors"
+                    >
+                      <Download size={15} />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(selectedTracker.id)}
+                      disabled={deleting === selectedTracker.id}
+                      title="Delete tracker"
+                      className="text-slate-600 hover:text-red-400 transition-colors disabled:opacity-40"
+                    >
+                      {deleting === selectedTracker.id ? (
+                        <Loader2 size={15} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={15} />
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* ── Sparkline ───────────────────────────────────────────── */}
+              {/* ── Sparkline (mini) ────────────────────────────────────── */}
               <div className="glass rounded-2xl p-5">
-                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-4">
-                  Activity — last 14 days
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">
+                  Last 14 days
                 </p>
                 <Sparkline
                   data={buildSparklineData(selectedTracker.locations, 14)}
                   width={540}
-                  height={72}
+                  height={56}
                 />
-                <div className="flex justify-between mt-2 text-xs text-slate-600">
-                  <span>14 days ago</span>
-                  <span>Today</span>
-                </div>
+              </div>
+
+              {/* ── Timeline chart (Recharts) ────────────────────────────── */}
+              <div className="glass rounded-2xl p-5">
+                <ClickChart locations={selectedTracker.locations ?? []} />
               </div>
 
               {/* ── Tracking link ───────────────────────────────────────── */}
               <div className="glass rounded-2xl p-5 flex flex-col gap-3">
                 <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Your tracking link
+                  Tracking link
                 </p>
                 <div className="flex items-center gap-3 bg-black/20 rounded-xl px-4 py-3 overflow-hidden">
                   <Link2 size={14} className="text-violet-400 shrink-0" />
                   <span className="text-sm text-slate-300 truncate flex-1 font-mono">
-                    {`${process.env.NEXT_PUBLIC_APP_URL}/t/${selectedTracker.short_url}`}
+                    {trackingUrl}
                   </span>
                   <button
                     onClick={() => handleCopy(selectedTracker.short_url)}
                     className="shrink-0 text-slate-400 hover:text-violet-300 transition-colors"
-                    title="Copy tracking link"
+                    title="Copy"
                   >
                     {copied === selectedTracker.short_url ? (
                       <Check size={16} className="text-green-400" />
@@ -389,10 +539,14 @@ export default function DashboardShell({
                     )}
                   </button>
                 </div>
-                <p className="text-xs text-slate-500">
-                  Share this instead of your direct URL — every visit is counted
-                  and geolocated.
-                </p>
+                {/* UTM badge */}
+                {selectedTracker.utm_params &&
+                  selectedTracker.utm_params.template !== "none" && (
+                    <p className="text-xs text-violet-400 font-medium">
+                      ✓ UTM params active (
+                      {selectedTracker.utm_params.template})
+                    </p>
+                  )}
               </div>
 
               {/* ── Recent clicks ────────────────────────────────────────── */}
@@ -408,18 +562,14 @@ export default function DashboardShell({
                         className="flex items-center justify-between py-2 border-b border-white/5 last:border-0"
                       >
                         <div className="flex items-center gap-2 text-sm">
-                          <MapPin
-                            size={13}
-                            className="text-violet-400 shrink-0"
-                          />
+                          <MapPin size={12} className="text-violet-400 shrink-0" />
                           <span className="text-slate-300">
                             {loc.city !== "??" ? loc.city : "Unknown city"}
                             {loc.country &&
                               loc.country !== "??" &&
                               loc.country !== "local" && (
                                 <span className="text-slate-500">
-                                  {" "}
-                                  · {loc.country}
+                                  {" "}· {loc.country}
                                 </span>
                               )}
                           </span>
@@ -435,7 +585,6 @@ export default function DashboardShell({
               )}
             </motion.div>
           ) : (
-            /* Empty state */
             <motion.div
               initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
@@ -475,123 +624,40 @@ export default function DashboardShell({
         <Plus size={26} strokeWidth={2.5} />
       </motion.button>
 
-      {/* ── Create modal ─────────────────────────────────────────────────────── */}
+      {/* ── Create tracker modal ──────────────────────────────────────────────── */}
       <AnimatePresence>
         {showCreate && (
-          <>
-            <motion.div
-              key="modal-bg"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => {
-                setShowCreate(false);
-                setCreateError(null);
-              }}
-              className="fixed inset-0 z-50 bg-black/60"
-            />
-            <motion.div
-              key="modal"
-              initial={{ opacity: 0, scale: 0.92, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.92, y: 20 }}
-              transition={{ type: "spring", stiffness: 420, damping: 32 }}
-              className="fixed inset-0 z-50 flex items-center justify-center px-4"
-            >
-              <div
-                className="glass rounded-3xl p-7 w-full max-w-sm flex flex-col gap-5"
-                onClick={(e) => e.stopPropagation()}
-              >
-                {/* Modal header */}
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-bold text-white">New tracker</h2>
-                  <button
-                    onClick={() => {
-                      setShowCreate(false);
-                      setCreateError(null);
-                    }}
-                    className="text-slate-400 hover:text-white transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
-                </div>
+          <CreateTrackerModal
+            folders={folders}
+            onClose={() => setShowCreate(false)}
+            onCreated={(tracker) => {
+              setTrackers((prev) => [tracker, ...prev]);
+              setSelected(tracker.id);
+              // Ensure the new tracker's folder is expanded.
+              if (tracker.folder_id) {
+                setExpandedFolders((prev) => new Set([...prev, tracker.folder_id!]));
+              } else {
+                setExpandedFolders((prev) => new Set([...prev, "uncategorized"]));
+              }
+              setShowCreate(false);
+              setSidebarOpen(false);
+            }}
+          />
+        )}
+      </AnimatePresence>
 
-                {/* Name */}
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    placeholder="e.g. Resume — Google"
-                    autoFocus
-                    className="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-violet-500/50 transition"
-                  />
-                </div>
-
-                {/* Original URL */}
-                <div>
-                  <label className="block text-xs font-medium text-slate-400 mb-1.5">
-                    Destination URL
-                  </label>
-                  <input
-                    type="url"
-                    value={newUrl}
-                    onChange={(e) => setNewUrl(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                    placeholder="https://drive.google.com/file/..."
-                    className="w-full glass rounded-xl px-4 py-3 text-sm text-white placeholder-slate-500 outline-none focus:ring-2 focus:ring-violet-500/50 transition"
-                  />
-                  <p className="text-xs text-slate-600 mt-1.5">
-                    Visitors who open your tracker link get redirected here.
-                  </p>
-                </div>
-
-                {/* Error */}
-                <AnimatePresence>
-                  {createError && (
-                    <motion.p
-                      key="err"
-                      initial={{ opacity: 0, y: -6 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                      className="text-sm text-red-300 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-2.5"
-                    >
-                      {createError}
-                    </motion.p>
-                  )}
-                </AnimatePresence>
-
-                {/* Buttons */}
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowCreate(false);
-                      setCreateError(null);
-                    }}
-                    className="flex-1 py-3 rounded-2xl glass text-slate-400 hover:text-white text-sm font-medium transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCreate}
-                    disabled={!newName.trim() || !newUrl.trim() || creating}
-                    className="btn-neon flex-1 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
-                  >
-                    {creating ? (
-                      <Loader2 size={16} className="animate-spin" />
-                    ) : (
-                      "Create"
-                    )}
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          </>
+      {/* ── QR modal ─────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {qrTracker && (
+          <QRModal
+            trackerName={qrTracker.name}
+            trackingUrl={
+              typeof window !== "undefined"
+                ? `${window.location.origin}/t/${qrTracker.short_url}`
+                : `/t/${qrTracker.short_url}`
+            }
+            onClose={() => setQrTracker(null)}
+          />
         )}
       </AnimatePresence>
     </div>
