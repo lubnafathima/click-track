@@ -90,6 +90,10 @@ export default function DashboardShell({
   // copy
   const [copied, setCopied] = useState<string | null>(null);
 
+  // export
+  const [exporting, setExporting] = useState<string | null>(null);
+  const [exportProgress, setExportProgress] = useState(0);
+
   // ── realtime ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const channel = supabase
@@ -171,7 +175,20 @@ export default function DashboardShell({
   };
 
   const handleExport = (trackerId: string) => {
-    window.location.href = `/api/export/${trackerId}`;
+    setExporting(trackerId);
+    setExportProgress(0);
+    const step = () => setExportProgress((p) => (p < 80 ? p + 20 : p));
+    const t1 = setTimeout(step, 100);
+    const t2 = setTimeout(step, 250);
+    const t3 = setTimeout(step, 420);
+    setTimeout(() => {
+      setExportProgress(100);
+      setTimeout(() => {
+        window.location.href = `/api/export/${trackerId}`;
+        clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
+        setTimeout(() => { setExporting(null); setExportProgress(0); }, 1200);
+      }, 300);
+    }, 580);
   };
 
   const toggleFolder = (id: string) => {
@@ -188,12 +205,11 @@ export default function DashboardShell({
   const recentClicks = selectedTracker
     ? [...(selectedTracker.locations ?? [])].reverse().slice(0, 20)
     : [];
-  const trackingUrl =
-    typeof window !== "undefined" && selectedTracker
-      ? `${window.location.origin}/t/${selectedTracker.short_url}`
-      : selectedTracker
-      ? `/t/${selectedTracker.short_url}`
-      : "";
+  const [origin, setOrigin] = useState("");
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+  const trackingUrl = selectedTracker
+    ? `${origin}/t/${selectedTracker.short_url}`
+    : "";
 
   // Group trackers by folder for sidebar.
   const byFolder = trackers.reduce<Record<string, Tracker[]>>((acc, t) => {
@@ -480,9 +496,14 @@ export default function DashboardShell({
                     <button
                       onClick={() => handleExport(selectedTracker.id)}
                       title="Export CSV"
-                      className="text-slate-500 hover:text-violet-400 transition-colors"
+                      disabled={exporting === selectedTracker.id}
+                      className="text-slate-500 hover:text-violet-400 disabled:opacity-60 transition-colors"
                     >
-                      <Download size={15} />
+                      {exporting === selectedTracker.id ? (
+                        <Loader2 size={15} className="animate-spin text-violet-400" />
+                      ) : (
+                        <Download size={15} />
+                      )}
                     </button>
                     <button
                       onClick={() => handleDelete(selectedTracker.id)}
@@ -639,6 +660,10 @@ export default function DashboardShell({
           <CreateTrackerModal
             folders={folders}
             onClose={() => setShowCreate(false)}
+            onBulkImported={(_count) => {
+              // Reload page to pick up all newly created trackers from server
+              window.location.reload();
+            }}
             onCreated={(tracker) => {
               setTrackers((prev) => [tracker, ...prev]);
               setSelected(tracker.id);
@@ -652,6 +677,30 @@ export default function DashboardShell({
               setSidebarOpen(false);
             }}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Export progress toast ────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {exporting && (
+          <motion.div
+            initial={{ opacity: 0, y: 24, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 24, scale: 0.96 }}
+            transition={{ type: "spring", stiffness: 400, damping: 28 }}
+            className="fixed bottom-24 right-7 z-30 bg-slate-900 border border-slate-700/60 rounded-2xl px-4 py-3 shadow-2xl w-56"
+          >
+            <p className="text-xs text-slate-300 font-medium mb-2">
+              Generating your analytics…
+            </p>
+            <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+              <motion.div
+                className="h-full bg-gradient-to-r from-violet-600 to-purple-400 rounded-full"
+                animate={{ width: `${exportProgress}%` }}
+                transition={{ ease: "easeOut", duration: 0.3 }}
+              />
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
 

@@ -14,12 +14,12 @@
 LIVE: https://click-track-live.vercel.app
 
 ## 🎯 PHASE 2: 10X ANALYTICS (1 Hour)
-[] QR Code Generation (Career fairs)
-[] UTM Builder (LinkedIn/Naukri params)
-[] Click Timeline Charts (Recharts)
-[] CSV Export Analytics
-[] Folders/Tags ("Applied/Interview")
-[] Bulk CSV Import (50 resumes)
+- [x] QR Code Generation (Career fairs)
+- [x] UTM Builder (LinkedIn/Naukri params)
+- [x] Click Timeline Charts (Recharts)
+- [x] CSV Export Analytics
+- [x] Folders/Tags ("Applied/Interview")
+- [] Bulk CSV Import (50 resumes)
 **Claude Prompt**: "Add QR + UTM + CSV + folders to Click Track"
 
 ## 🔥 PHASE 3: TRUST + VIRALITY (30 Min)

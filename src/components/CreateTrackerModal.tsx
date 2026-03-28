@@ -6,6 +6,9 @@ import { X, Loader2, ChevronDown } from "lucide-react";
 import { createTracker } from "@/app/actions";
 import type { Folder, Tracker, UtmParams, UtmTemplate } from "@/types/tracker";
 import { UTM_TEMPLATES, buildUtmUrl } from "@/types/tracker";
+import BulkImportTab from "./BulkImportTab";
+
+type Tab = "single" | "bulk";
 
 // ─── props ────────────────────────────────────────────────────────────────────
 
@@ -13,6 +16,7 @@ interface CreateTrackerModalProps {
   folders: Folder[];
   onClose: () => void;
   onCreated: (tracker: Tracker) => void;
+  onBulkImported?: (count: number) => void;
 }
 
 // ─── component ────────────────────────────────────────────────────────────────
@@ -21,7 +25,9 @@ export default function CreateTrackerModal({
   folders,
   onClose,
   onCreated,
+  onBulkImported,
 }: CreateTrackerModalProps) {
+  const [tab, setTab] = useState<Tab>("single");
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
   const [folderId, setFolderId] = useState<string>("");       // "" = Uncategorized
@@ -111,6 +117,54 @@ export default function CreateTrackerModal({
               <X size={20} />
             </button>
           </div>
+
+          {/* Tabs */}
+          <div className="bg-slate-800/60 rounded-xl p-1 flex gap-1">
+            {(["single", "bulk"] as Tab[]).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`relative flex-1 py-2 text-xs font-semibold rounded-lg transition-colors ${
+                  tab === t ? "text-white" : "text-slate-500 hover:text-slate-300"
+                }`}
+              >
+                {tab === t && (
+                  <motion.span
+                    layoutId="modal-tab-pill"
+                    className="absolute inset-0 bg-violet-600 rounded-lg"
+                    transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                  />
+                )}
+                <span className="relative z-10">
+                  {t === "single" ? "Single" : "Bulk CSV"}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          <AnimatePresence mode="wait">
+            {tab === "bulk" ? (
+              <motion.div
+                key="bulk"
+                initial={{ opacity: 0, x: 12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -12 }}
+                transition={{ duration: 0.18 }}
+              >
+                <BulkImportTab
+                  onImported={(count) => { onBulkImported?.(count); onClose(); }}
+                  onClose={onClose}
+                />
+              </motion.div>
+            ) : (
+              <motion.div
+                key="single"
+                initial={{ opacity: 0, x: -12 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 12 }}
+                transition={{ duration: 0.18 }}
+                className="flex flex-col gap-5"
+              >
 
           {/* Name */}
           <Field label="Name">
@@ -251,7 +305,7 @@ export default function CreateTrackerModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 rounded-2xl glass text-slate-400 hover:text-white text-sm font-medium transition-colors"
+              className="flex-1 py-3 rounded-2xl bg-slate-800 border border-slate-700/50 text-slate-400 hover:text-white text-sm font-medium transition-colors"
             >
               Cancel
             </button>
@@ -261,9 +315,23 @@ export default function CreateTrackerModal({
               disabled={!name.trim() || !url.trim() || creating}
               className="btn-neon flex-1 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
             >
-              {creating ? <Loader2 size={16} className="animate-spin" /> : "Create"}
+              {creating ? (
+                <>
+                  <motion.span
+                    animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+                    transition={{ repeat: Infinity, duration: 1 }}
+                    className="w-2 h-2 bg-white rounded-full"
+                  />
+                  Creating…
+                </>
+              ) : (
+                "Create"
+              )}
             </button>
           </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </motion.div>
     </>

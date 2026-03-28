@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Eye, EyeOff, Loader2 } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 type Mode = "signin" | "signup";
@@ -168,10 +168,26 @@ export default function AuthForm() {
         <button
           type="submit"
           disabled={isPending}
-          className="btn-neon mt-1 flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-2xl transition-colors"
+          className="btn-neon mt-1 relative overflow-hidden flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-500 disabled:opacity-80 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-2xl transition-colors"
         >
           {isPending ? (
-            <Loader2 size={18} className="animate-spin" />
+            <>
+              {/* Neon orb */}
+              <motion.span
+                animate={{
+                  scale: [1, 1.5, 1],
+                  opacity: [0.9, 0.5, 0.9],
+                  boxShadow: [
+                    "0 0 8px 3px rgba(167,139,250,0.8)",
+                    "0 0 20px 8px rgba(167,139,250,0.4)",
+                    "0 0 8px 3px rgba(167,139,250,0.8)",
+                  ],
+                }}
+                transition={{ repeat: Infinity, duration: 1.1, ease: "easeInOut" }}
+                className="w-3 h-3 bg-violet-300 rounded-full shrink-0"
+              />
+              {mode === "signin" ? "Signing in…" : "Creating account…"}
+            </>
           ) : mode === "signin" ? (
             "Sign in"
           ) : (

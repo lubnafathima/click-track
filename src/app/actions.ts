@@ -103,6 +103,127 @@ export async function createFolder(name: string): Promise<Folder> {
   return data as Folder;
 }
 
+// ─── bulk CSV import ──────────────────────────────────────────────────────────
+
+function parseCsvLine(line: string): string[] {
+  const fields: string[] = [];
+  let current = "";
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') {
+      if (inQuotes && line[i + 1] === '"') { current += '"'; i++; }
+      else { inQuotes = !inQuotes; }
+    } else if (c === "," && !inQuotes) {
+      fields.push(current); current = "";
+    } else {
+      current += c;
+    }
+  }
+  fields.push(current);
+  return fields;
+}
+
+export async function importTrackersCSV(
+  formData: FormData
+): Promise<{ created: number; errors: Array<{ row: number; message: string }> }> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("Not authenticated");
+
+  const file = formData.get("file") as File | null;
+  if (!file) throw new Error("No file provided");
+
+  const text = await file.text();
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length < 2) throw new Error("CSV must have a header row and at least one data row");
+
+  const dataLines = lines.slice(1);
+  const rows = dataLines.map(parseCsvLine);
+
+  // Collect unique non-empty folder names
+  const folderNames = [...new Set(rows.map((r) => r[2]?.trim()).filter(Boolean))];
+
+  // Fetch existing folders for this user
+  const { data: existingFolders } = await supabase
+    .from("folders")
+    .select("id, name")
+    .eq("user_id", user.id);
+
+  const folderMap: Record<string, string> = {};
+  for (const f of existingFolders ?? []) {
+    folderMap[f.name.toLowerCase()] = f.id;
+  }
+
+  // Auto-create any missing folders
+  for (const name of folderNames) {
+    if (!folderMap[name.toLowerCase()]) {
+      const { data } = await supabase
+        .from("folders")
+        .insert({ user_id: user.id, name })
+        .select("id, name")
+        .single();
+      if (data) folderMap[data.name.toLowerCase()] = data.id;
+    }
+  }
+
+  let created = 0;
+  const errors: Array<{ row: number; message: string }> = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const [rawName = "", rawUrl = "", rawFolder = ""] = rows[i];
+    const rowNum = i + 2;
+    const name = rawName.trim();
+    const originalUrl = rawUrl.trim();
+
+    if (!name || !originalUrl) {
+      errors.push({ row: rowNum, message: "Missing name or URL" });
+      continue;
+    }
+
+    try {
+      const u = new URL(originalUrl);
+      if (!["http:", "https:"].includes(u.protocol)) throw new Error();
+    } catch {
+      errors.push({ row: rowNum, message: `Invalid URL: ${originalUrl}` });
+      continue;
+    }
+
+    const folderId = rawFolder.trim()
+      ? (folderMap[rawFolder.trim().toLowerCase()] ?? null)
+      : null;
+
+    let inserted = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const slug = generateSlug();
+      const { error } = await supabase.from("trackers").insert({
+        user_id: user.id,
+        name,
+        original_url: originalUrl,
+        short_url: slug,
+        clicks: 0,
+        locations: [],
+        utm_params: null,
+        folder_id: folderId,
+      });
+      if (error?.code === "23505") continue;
+      if (error) { errors.push({ row: rowNum, message: error.message }); break; }
+      created++;
+      inserted = true;
+      break;
+    }
+    if (!inserted && !errors.find((e) => e.row === rowNum)) {
+      errors.push({ row: rowNum, message: "Could not generate unique slug" });
+    }
+  }
+
+  revalidatePath("/dashboard");
+  return { created, errors };
+}
+
 export async function deleteFolder(id: string): Promise<void> {
   const supabase = await createClient();
 
