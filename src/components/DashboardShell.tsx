@@ -28,6 +28,7 @@ import { createFolder, deleteTracker } from "@/app/actions";
 import ClickChart from "./ClickChart";
 import QRModal from "./QRModal";
 import CreateTrackerModal from "./CreateTrackerModal";
+import ShareButtons from "./ShareButtons";
 import type { Folder as FolderType, Tracker } from "@/types/tracker";
 import { buildSparklineData } from "@/types/tracker";
 import Sparkline from "./Sparkline";
@@ -166,8 +167,8 @@ export default function DashboardShell({
     [selected],
   );
 
-  const handleCopy = (slug: string) => {
-    const url = `${window.location.origin}/t/${slug}`;
+  const handleCopy = (slug: string, stealth = true) => {
+    const url = `${window.location.origin}/${stealth ? "r" : "t"}/${slug}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopied(slug);
       setTimeout(() => setCopied(null), 2000);
@@ -207,6 +208,11 @@ export default function DashboardShell({
     : [];
   const [origin, setOrigin] = useState("");
   useEffect(() => { setOrigin(window.location.origin); }, []);
+  // /r/ = stealth (share with recruiters) — pure redirect, zero branding
+  // /t/ = preview page (your own reference)
+  const stealthUrl = selectedTracker
+    ? `${origin}/r/${selectedTracker.short_url}`
+    : "";
   const trackingUrl = selectedTracker
     ? `${origin}/t/${selectedTracker.short_url}`
     : "";
@@ -538,36 +544,65 @@ export default function DashboardShell({
                 <ClickChart locations={selectedTracker.locations ?? []} />
               </div>
 
-              {/* ── Tracking link ───────────────────────────────────────── */}
-              <div className="glass rounded-2xl p-5 flex flex-col gap-3">
-                <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-                  Tracking link
-                </p>
-                <div className="flex items-center gap-3 bg-black/20 rounded-xl px-4 py-3 overflow-hidden">
-                  <Link2 size={14} className="text-violet-400 shrink-0" />
-                  <span className="text-sm text-slate-300 truncate flex-1 font-mono">
-                    {trackingUrl}
-                  </span>
-                  <button
-                    onClick={() => handleCopy(selectedTracker.short_url)}
-                    className="shrink-0 text-slate-400 hover:text-violet-300 transition-colors"
-                    title="Copy"
-                  >
-                    {copied === selectedTracker.short_url ? (
-                      <Check size={16} className="text-green-400" />
-                    ) : (
-                      <Copy size={16} />
-                    )}
-                  </button>
+              {/* ── Tracking links ──────────────────────────────────────── */}
+              <div className="glass rounded-2xl p-5 flex flex-col gap-4">
+                {/* Primary: stealth /r/ link */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-400 inline-block" />
+                      Share this link
+                    </p>
+                    <span className="text-[10px] text-slate-500 font-medium">Invisible tracking</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-black/20 rounded-xl px-4 py-3 overflow-hidden">
+                    <Link2 size={14} className="text-green-400 shrink-0" />
+                    <span className="text-sm text-slate-300 truncate flex-1 font-mono">
+                      {stealthUrl}
+                    </span>
+                    <button
+                      onClick={() => handleCopy(selectedTracker.short_url, true)}
+                      className="shrink-0 text-slate-400 hover:text-green-400 transition-colors"
+                      title="Copy stealth link"
+                    >
+                      {copied === selectedTracker.short_url ? (
+                        <Check size={16} className="text-green-400" />
+                      ) : (
+                        <Copy size={16} />
+                      )}
+                    </button>
+                  </div>
                 </div>
+
+                {/* Secondary: /t/ preview link */}
+                <div>
+                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1.5">
+                    Preview link
+                  </p>
+                  <div className="flex items-center gap-3 bg-black/10 rounded-xl px-4 py-2.5 overflow-hidden">
+                    <Link2 size={13} className="text-slate-600 shrink-0" />
+                    <span className="text-xs text-slate-500 truncate flex-1 font-mono">
+                      {trackingUrl}
+                    </span>
+                  </div>
+                </div>
+
                 {/* UTM badge */}
                 {selectedTracker.utm_params &&
                   selectedTracker.utm_params.template !== "none" && (
                     <p className="text-xs text-violet-400 font-medium">
-                      ✓ UTM params active (
-                      {selectedTracker.utm_params.template})
+                      ✓ UTM params active ({selectedTracker.utm_params.template})
                     </p>
                   )}
+
+                {/* Share buttons */}
+                {stealthUrl && (
+                  <ShareButtons
+                    stealthUrl={stealthUrl}
+                    trackerName={selectedTracker.name}
+                    clicks={selectedTracker.clicks}
+                  />
+                )}
               </div>
 
               {/* ── Recent clicks ────────────────────────────────────────── */}
